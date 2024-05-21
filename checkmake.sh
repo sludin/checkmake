@@ -6,7 +6,7 @@ TIME=`date +%s`
 DIR="tmp_$TIME"
 
 usage () {
-    echo "usage: check_tarball.sh TARBALL"
+    echo "usage: [bash] checkmake.sh TARBALL"
 }
 
 
