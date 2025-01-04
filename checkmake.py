@@ -145,15 +145,28 @@ def test_readme( log, project_dir ):
 
 
     return True
-    
+
+def test_target( log, project_dir, target ):
+
+    target_file = project_dir + "/" + target
+
+    try:
+        stat = os.stat( target_file )
+    except Exception as e:
+        log.error( "Target file", target, "not found:", e )
+        return False
+
+
+    return True
+
 def handle_args():
     options = Options()
     opts = []
     args = []
     
     try:
-        opts, args = getopt.gnu_getopt( sys.argv[1:], "xo:e:hw:l:",
-                                        [ "stdout=", "stderr=", "help", "work=", "log=", "flog_level=", "clog_level=" ] )
+        opts, args = getopt.gnu_getopt( sys.argv[1:], "xo:e:hw:l:t:",
+                                        [ "stdout=", "stderr=", "help", "work=", "log=", "flog_level=", "clog_level=", "target=" ] )
     except getopt.GetoptError as err:
         print( err )
         sys.exit(1)
@@ -168,6 +181,7 @@ def handle_args():
     options.verbose           = 1
     options.log_level_file    = Log.INFO
     options.log_level_console = Log.WARNING
+    options.target            = ""
     
     for o, a in opts:
         if o == "-x":
@@ -183,6 +197,8 @@ def handle_args():
             options.working_dir = a
         elif o in ("-l", "--log"):
             options.log_file = a
+        elif o in ("-t", "--target"):
+            options.target = a
         elif o in ("--flog_level", "--clog_level" ):
             try:
                 level = Log.code_to_level( a )
@@ -208,6 +224,7 @@ def handle_args():
 
     return options
 
+
 def main():
 
     opts = handle_args()
@@ -216,7 +233,7 @@ def main():
     if path_is_parent( ".", opts.working_dir ) == False:
         print( "The working directory must be a child of the current directory" )
         print( "This is to help keep you from accidentally blowing away your system" )
-        sys.exit()
+        sys.exit(1)
 
     # Remove the working dir before we start unless told not to
     if opts.preserve_work == False:
@@ -235,17 +252,24 @@ def main():
 
     if project_dir == None:
         print( "Error calling explode_tarball" )
-        sys.exit()
+        sys.exit(1)
 
     ret = test_make( log, project_dir, opts.stdout_file, opts.stderr_file )
     if ret == False:
         log.error( "test_make failed" )
+        sys.exit(1)
     
     ret = test_readme( log, project_dir )
     if ret == False:
         log.error( "test_readme failed" )
+        sys.exit(1)
 
-    
+    if opts.target != "":
+        ret = test_target( log, project_dir, opts.target )
+        if ret == False:
+            log.error( "test_readme failed" )
+            sys.exit(1)
+        
     # Remove the working dir when done if asked to
     if opts.remove_work == False:
         shutil.rmtree( opts.working_dir, ignore_errors=True )
