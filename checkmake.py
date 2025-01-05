@@ -4,6 +4,7 @@ import subprocess
 import os
 import shutil
 import getopt
+from dataclasses import dataclass, field
 
 WORKING_DIR         = "./work"
 STDOUT_FILE         = "make.stdout"
@@ -11,10 +12,9 @@ STDERR_FILE         = "make.stderr"
 LOG_FILE            = "checkmake.out"
 REMOVE_WORK_DEFAULT = True
 
-class Options():
-    pass
 
-class Log():
+
+class Log:
     NONE    = 0
     FATAL   = 1
     ERROR   = 2
@@ -22,260 +22,390 @@ class Log():
     INFO    = 4
     DEBUG   = 5
     ALL     = 6
-    levels  = [ "NONE", "FATAL", "ERROR", "WARNING", "INFO", "DEBUG", "ALL" ]
-    level_map = {}
+
+    levels = ["NONE", "FATAL", "ERROR", "WARNING", "INFO", "DEBUG", "ALL"]
     
-    def __init__( self, filename, log_level_console=WARNING, log_level_file=INFO ):
-        self.file = open( filename, "w" )
-        self.file_level    = log_level_file
+    def __init__(self, filename, log_level_console=WARNING, log_level_file=INFO):
+        """
+        Initialize the Log class with file logging and console logging levels.
+        
+        Parameters:
+            filename (str): The file to which log messages will be written.
+            log_level_console (int): Minimum log level for messages to be printed to the console.
+            log_level_file (int): Minimum log level for messages to be written to the file.
+        """
+        self.file = open(filename, "w")
+        self.file_level = log_level_file
         self.console_level = log_level_console
-        for n in range(Log.ALL):
-            level_map = { n, self.levels[n] }
 
     def __del__(self):
-        self.file.close()
+        """Close the log file upon deletion of the Log object."""
+        if self.file and not self.file.closed:
+            self.file.close()
 
-    # TODO: figure out how to use Log.INFO below rather than 3
-    def print( self, *args, sep=' ', end='\n', level=3 ):
-        level_text = Log.levels[level] + ":"
+    def print(self, *args, sep=' ', end='\n', level=INFO):
+        """
+        Print a log message to the console and/or file based on the log level.
+        
+        Parameters:
+            *args: The log message components.
+            sep (str): Separator between log message components (default: ' ').
+            end (str): End character for the log message (default: '\n').
+            level (int): The log level of the message (default: INFO).
+        """
+        if level < Log.NONE or level > Log.ALL:
+            raise ValueError(f"Invalid log level: {level}")
+
+        level_text = f"{Log.levels[level]}:"
 
         if level <= self.file_level:
-            print( level_text, *args, file=self.file, sep=sep, end=end )
+            print(level_text, *args, file=self.file, sep=sep, end=end)
         if level <= self.console_level:
-            print( level_text, *args, sep=sep, end=end )
-            
+            print(level_text, *args, sep=sep, end=end)
 
-    def debug( self, *args, sep=' ', end='\n' ):
-        self.print( *args, sep=sep, end=end, level=Log.DEBUG )
+    def debug(self, *args, sep=' ', end='\n'):
+        """Log a debug message."""
+        self.print(*args, sep=sep, end=end, level=Log.DEBUG)
 
-    def info( self, *args, sep=' ', end='\n' ):
-        self.print( *args, sep=sep, end=end, level=Log.INFO )
+    def info(self, *args, sep=' ', end='\n'):
+        """Log an info message."""
+        self.print(*args, sep=sep, end=end, level=Log.INFO)
 
-    def warning( self, *args, sep=' ', end='\n' ):
-        self.print( *args, sep=sep, end=end, level=Log.WARNING )
+    def warning(self, *args, sep=' ', end='\n'):
+        """Log a warning message."""
+        self.print(*args, sep=sep, end=end, level=Log.WARNING)
 
-    def error( self, *args, sep=' ', end='\n' ):
-        self.print( *args, sep=sep, end=end, level=Log.ERROR )
+    def error(self, *args, sep=' ', end='\n'):
+        """Log an error message."""
+        self.print(*args, sep=sep, end=end, level=Log.ERROR)
 
     @classmethod
-    def code_to_level( cls, level_text ):
-        index = cls.levels.index(level_text)
-        return index
-    
+    def code_to_level(cls, level_text):
+        """
+        Convert a log level name to its corresponding integer code.
         
+        Parameters:
+            level_text (str): The name of the log level (e.g., "INFO").
+        
+        Returns:
+            int: The integer code for the log level.
+        """
+        try:
+            return cls.levels.index(level_text)
+        except ValueError:
+            raise ValueError(f"Invalid log level name: {level_text}")
+    
+
+@dataclass
+class Options():
+    """
+    A class to hold options parsed from the command line arguments.
+    Default values are provided where applicable.
+    """
+    remove_work: bool = False
+    preserve_work: bool = False
+    verbose: int = 1
+    log_level_file: int = Log.INFO
+    log_level_console: int = Log.WARNING
+    stdout_file: str = ""
+    stderr_file: str = ""
+    working_dir: str = ""
+    log_file: str = ""
+    target: str = ""
+    tarball: str = ""
+    args: list = field(default_factory=list)
 
 def path_is_parent(parent_path, child_path):
-    parent_path = os.path.abspath(parent_path)
-    child_path = os.path.abspath(child_path)
-    return os.path.commonpath([parent_path]) == os.path.commonpath([parent_path, child_path])
+    """
+    Checks if the given parent_path is a parent directory of child_path.
+    
+    Parameters:
+        parent_path (str): The potential parent directory path.
+        child_path (str): The potential child directory path.
+        
+    Returns:
+        bool: True if parent_path is a parent of child_path, False otherwise.
+    """
+    parent_abs = os.path.abspath(parent_path)
+    child_abs = os.path.abspath(child_path)
+    return os.path.commonpath([parent_abs]) == os.path.commonpath([parent_abs, child_abs])
+
 
         
-def test_tarball( log, tarball, working_dir ):
 
-    log.info( "Expanding tarball:", tarball, "into", working_dir )
+def test_tarball(log, tarball, working_dir):
+    """
+    Expands a tarball into the specified working directory and determines the project directory.
     
+    Parameters:
+        log: Logger instance for logging messages.
+        tarball: Path to the tarball file to be expanded.
+        working_dir: Directory where the tarball will be extracted.
+        
+    Returns:
+        str: The path to the project directory, or None if an error occurs.
+    """
+    log.info(f"Expanding tarball: {tarball} into {working_dir}")
     project_dir = working_dir
-    
-    try:
-        tar = tarfile.open( tarball, "r:gz") 
-        top = tar.getmembers()[0]
-        if top.type == tarfile.DIRTYPE: 
-            project_dir = project_dir + "/" + top.name
-            log.info( "Top level of the tarball is the directory:", top.name )
-        else:
-            log.warning( "Warning: top member of the tarball is not a directory. Rolling with it anyway." )
-        tar.extractall( path = WORKING_DIR )
 
+    try:
+        with tarfile.open(tarball, "r:gz") as tar:
+            top_member = tar.getmembers()[0]
+            if top_member.type == tarfile.DIRTYPE:
+                project_dir = os.path.join(working_dir, top_member.name)
+                log.info(f"Top level of the tarball is the directory: {top_member.name}")
+            else:
+                log.warning("Warning: top member of the tarball is not a directory. Rolling with it anyway.")
+            tar.extractall(path=working_dir)
     except Exception as err:
-        log.error( "Error expanding the tarball:", err )
+        log.error(f"Error expanding the tarball: {err}")
         return None
 
-    log.info( "Project dir is set to:", project_dir )
-    
+    log.info(f"Project dir is set to: {project_dir}")
     return project_dir
 
-def test_make( log, project_dir, stdout_file, stderr_file ):
-    cwd = os.getcwd()
-    
-    
-    os.chdir( project_dir )
 
-    log.info( "Running makefile" )
 
-    result = subprocess.run(["make"], capture_output=True, text=True)
 
-    level = Log.INFO
-    
-    if result.returncode != 0:
-        level = Log.ERROR
+def test_make(log, project_dir, stdout_file, stderr_file):
+    """
+    Runs the makefile in the specified project directory and captures stdout and stderr.
 
-    
-    log.print( "make failed with return code:", result.returncode, level = level )
-    log.print( "stdout ---------------------", level = level )
-    log.print( result.stdout, level = level )
-    log.print( "stderr ---------------------", level = level )
-    log.print( result.stderr, level = level )
-        
-    os.chdir( cwd )
+    Parameters:
+        log: Logger instance for logging messages.
+        project_dir: Directory containing the Makefile to execute.
+        stdout_file: Path to the file where stdout will be written.
+        stderr_file: Path to the file where stderr will be written.
 
-    # write output files
-    f = open( stdout_file, "w" )
-    f.write( result.stdout )
-    f.close()
-    
-    f = open( stderr_file, "w" )
-    f.write( result.stderr )
-    f.close()
+    Returns:
+        bool: True if the make command succeeds (return code 0), False otherwise.
+    """
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(project_dir)
+        log.info("Running makefile")
 
-    return result.returncode == 0
+        result = subprocess.run(["make"], capture_output=True, text=True)
+        log_level = log.INFO if result.returncode == 0 else log.ERROR
 
-def test_readme( log, project_dir ):
+        log.print(f"make returned code: {result.returncode}", level=log_level)
+        log.print("stdout ---------------------", level=log_level)
+        log.print(result.stdout.strip(), level=log_level)
+        log.print("stderr ---------------------", level=log_level)
+        log.print(result.stderr.strip(), level=log_level)
 
-    readme = project_dir + "/" + "README.txt"
+        return_code = result.returncode == 0
+
+    except Exception as e:
+        log.error(f"An error occurred while running make: {e}")
+        return_code = False
+
+    finally:
+        os.chdir(original_cwd)
 
     try:
-        stat = os.stat( readme )
+        with open(stdout_file, "w") as f:
+            f.write(result.stdout)
+        with open(stderr_file, "w") as f:
+            f.write(result.stderr)
+    except Exception as e:
+        log.error(f"Failed to write stdout or stderr to files: {e}")
+        return False
+
+    return return_code
+
+
+def test_readme(log, project_dir):
+    """
+    Checks if a README.txt file exists in the project directory and is not empty.
+    
+    Parameters:
+        log: Logger instance for logging messages.
+        project_dir: Directory where the README.txt file is expected to be located.
+        
+    Returns:
+        bool: True if README.txt exists and is not empty, False otherwise.
+    """
+    readme_path = os.path.join(project_dir, "README.txt")
+
+    try:
+        stat = os.stat(readme_path)
         if stat.st_size == 0:
-            log.error( "README.txt exists but it is empty" )
+            log.error("README.txt exists but it is empty")
             return False
-        
-    except Exception as e:
-        log.error( "README.txt not found:", e )
+    except FileNotFoundError:
+        log.error(f"README.txt not found in {project_dir}")
         return False
-
+    except Exception as e:
+        log.error(f"An error occurred while checking README.txt: {e}")
+        return False
 
     return True
 
-def test_target( log, project_dir, target ):
+    
 
-    target_file = project_dir + "/" + target
+def test_target(log, project_dir, target):
+    """
+    Checks if a specified target file exists in the project directory.
+    
+    Parameters:
+        log: Logger instance for logging messages.
+        project_dir: Directory where the target file is expected to be located.
+        target: Name of the target file to check.
+        
+    Returns:
+        bool: True if the target file exists, False otherwise.
+    """
+    target_path = os.path.join(project_dir, target)
 
     try:
-        stat = os.stat( target_file )
+        os.stat(target_path)
+    except FileNotFoundError:
+        log.error(f"Target file '{target}' not found in {project_dir}")
+        return False
     except Exception as e:
-        log.error( "Target file", target, "not found:", e )
+        log.error(f"An error occurred while checking target file '{target}': {e}")
         return False
 
-
     return True
+    
+
+
 
 def handle_args():
+    """
+    Processes command-line arguments and options, returning an Options object with the parsed values.
+    
+    Returns:
+        Options: An object containing the processed command-line arguments and flags.
+    """
     options = Options()
-    opts = []
-    args = []
     
     try:
-        opts, args = getopt.gnu_getopt( sys.argv[1:], "xo:e:hw:l:t:",
-                                        [ "stdout=", "stderr=", "help", "work=", "log=", "flog_level=", "clog_level=", "target=" ] )
+        opts, args = getopt.gnu_getopt(
+            sys.argv[1:], 
+            "xo:e:hw:l:t:", 
+            ["stdout=", "stderr=", "help", "work=", "log=", "flog_level=", "clog_level=", "target="]
+        )
     except getopt.GetoptError as err:
-        print( err )
+        print(err)
         sys.exit(1)
 
-    options.remove_work       = REMOVE_WORK_DEFAULT
-    options.stderr_file       = ""
-    options.stdout_file       = ""
-    options.working_dir       = WORKING_DIR
-    options.log_file          = ""
-    options.args              = args
+    # Set default values
+    options.remove_work = REMOVE_WORK_DEFAULT
+    options.stderr_file = ""
+    options.stdout_file = ""
+    options.working_dir = WORKING_DIR
+    options.log_file    = ""
+    options.args        = args
     options.preserve_work     = False
     options.verbose           = 1
     options.log_level_file    = Log.INFO
     options.log_level_console = Log.WARNING
     options.target            = ""
-    
-    for o, a in opts:
-        if o == "-x":
+
+    # Parse command-line options
+    for opt, arg in opts:
+        if opt == "-x":
             options.preserve_work = False
-        elif o in ("-h", "--help"):
+        elif opt in ("-h", "--help"):
             usage()
             sys.exit()
-        elif o in ("-o", "--stdout"):
-            options.stdout_file = a
-        elif o in ("-e", "--STDERR_FILE"):
-            options.stderr_file = a
-        elif o in ("-w", "--work"):
-            options.working_dir = a
-        elif o in ("-l", "--log"):
-            options.log_file = a
-        elif o in ("-t", "--target"):
-            options.target = a
-        elif o in ("--flog_level", "--clog_level" ):
+        elif opt in ("-o", "--stdout"):
+            options.stdout_file = arg
+        elif opt in ("-e", "--stderr"):
+            options.stderr_file = arg
+        elif opt in ("-w", "--work"):
+            options.working_dir = arg
+        elif opt in ("-l", "--log"):
+            options.log_file = arg
+        elif opt in ("-t", "--target"):
+            options.target = arg
+        elif opt in ("--flog_level", "--clog_level"):
             try:
-                level = Log.code_to_level( a )
-                if o == "--flog_level":
+                level = Log.code_to_level(arg)
+                if opt == "--flog_level":
                     options.log_level_file = level
                 else:
                     options.log_level_console = level
-            except:
-                print( "Invalid log level:", a )
+            except ValueError:
+                print(f"Invalid log level: {arg}")
                 sys.exit(1)
         else:
-            assert False, "unhandled option"
+            raise ValueError(f"Unhandled option: {opt}")
 
-        
-    if options.stdout_file == "":
-        options.stdout_file = options.working_dir + "/" + STDOUT_FILE
-    if options.stderr_file == "":
-        options.stderr_file = options.working_dir + "/" + STDERR_FILE
-    if options.log_file == "":
-        options.log_file = options.working_dir + "/" + LOG_FILE
-                    
+    # Set default paths if not provided
+    options.stdout_file = options.stdout_file or os.path.join(options.working_dir, STDOUT_FILE)
+    options.stderr_file = options.stderr_file or os.path.join(options.working_dir, STDERR_FILE)
+    options.log_file    = options.log_file or os.path.join(options.working_dir, LOG_FILE)
+
+    # Set tarball argument
+    if not args:
+        print("Error: Tarball argument is required.")
+        sys.exit(1)
     options.tarball = args[0]
 
     return options
 
+import os
+import sys
+import shutil
 
 def main():
-
+    # Parse command-line arguments
     opts = handle_args()
 
-
-    if path_is_parent( ".", opts.working_dir ) == False:
-        print( "The working directory must be a child of the current directory" )
-        print( "This is to help keep you from accidentally blowing away your system" )
+    # Ensure the working directory is a child of the current directory
+    if not path_is_parent(".", opts.working_dir):
+        print(
+            "The working directory must be a child of the current directory.\n"
+            "This is to prevent accidental damage to your system."
+        )
         sys.exit(1)
 
-    # Remove the working dir before we start unless told not to
-    if opts.preserve_work == False:
-        shutil.rmtree( opts.working_dir, ignore_errors=True )
+    # Clean up the working directory if not preserving it
+    if not opts.preserve_work:
+        shutil.rmtree(opts.working_dir, ignore_errors=True)
 
-    os.mkdir( opts.working_dir )
+    # Create the working directory
+    os.makedirs(opts.working_dir, exist_ok=True)
 
-    log = Log( opts.log_file,
-               log_level_console=opts.log_level_console,
-               log_level_file=opts.log_level_file )
+    # Initialize the logger
+    log = Log(
+        opts.log_file,
+        log_level_console=opts.log_level_console,
+        log_level_file=opts.log_level_file,
+    )
 
+    log.info("Starting the checks")
 
-    log.info( "Starting" )
-    
-    project_dir = test_tarball( log, opts.tarball, opts.working_dir )
-
-    if project_dir == None:
-        print( "Error calling explode_tarball" )
+    # Expand the tarball
+    project_dir = test_tarball(log, opts.tarball, opts.working_dir)
+    if project_dir is None:
+        log.error("Error in test_tarball: Failed to expand tarball")
         sys.exit(1)
 
-    ret = test_make( log, project_dir, opts.stdout_file, opts.stderr_file )
-    if ret == False:
-        log.error( "test_make failed" )
-        sys.exit(1)
-    
-    ret = test_readme( log, project_dir )
-    if ret == False:
-        log.error( "test_readme failed" )
+    # Run the makefile
+    if not test_make(log, project_dir, opts.stdout_file, opts.stderr_file):
+        log.error("Error in test_make: Makefile execution failed")
         sys.exit(1)
 
-    if opts.target != "":
-        ret = test_target( log, project_dir, opts.target )
-        if ret == False:
-            log.error( "test_readme failed" )
+    # Verify the README.txt file
+    if not test_readme(log, project_dir):
+        log.error("Error in test_readme: README.txt verification failed")
+        sys.exit(1)
+
+    # Check for the specified target, if provided
+    if opts.target:
+        if not test_target(log, project_dir, opts.target):
+            log.error(f"Error in test_target: Target '{opts.target}' verification failed")
             sys.exit(1)
-        
-    # Remove the working dir when done if asked to
-    if opts.remove_work == False:
-        shutil.rmtree( opts.working_dir, ignore_errors=True )
 
+    # Remove the working directory if requested
+    if not opts.remove_work:
+        shutil.rmtree(opts.working_dir, ignore_errors=True)
 
-    
+    log.info("Process completed successfully")
     
 if __name__ == "__main__":
     main()
