@@ -12,8 +12,6 @@ STDERR_FILE         = "make.stderr"
 LOG_FILE            = "checkmake.out"
 REMOVE_WORK_DEFAULT = True
 
-
-
 class Log:
     NONE    = 0
     FATAL   = 1
@@ -291,18 +289,8 @@ def handle_args():
         print(err)
         sys.exit(1)
 
-    # Set default values
-    options.remove_work = REMOVE_WORK_DEFAULT
-    options.stderr_file = ""
-    options.stdout_file = ""
     options.working_dir = WORKING_DIR
-    options.log_file    = ""
     options.args        = args
-    options.preserve_work     = False
-    options.verbose           = 1
-    options.log_level_file    = Log.INFO
-    options.log_level_console = Log.WARNING
-    options.target            = ""
 
     # Parse command-line options
     for opt, arg in opts:
@@ -347,9 +335,33 @@ def handle_args():
 
     return options
 
-import os
-import sys
-import shutil
+def usage():
+    """
+    Prints the usage information for the script, detailing the available options and arguments.
+    """
+    print(
+        """
+Usage: checkmake.py [OPTIONS] TARFILE
+
+Options:
+  -x                      Remove the working directory before starting (default: keep the directory).
+  -w, --work=DIR          Specify the working directory where operations will be performed (default: ./work).
+  -o, --stdout=FILE       File to write stdout output from the make process (default: {working_dir}/stdout.log).
+  -e, --stderr=FILE       File to write stderr output from the make process (default: {working_dir}/stderr.log).
+  -l, --log=FILE          File to write log messages (default: {working_dir}/logfile.log).
+  -t, --target=FILE       Specify a target file to verify its presence in the project directory.
+  --flog_level=LEVEL      Set the file logging level (e.g., DEBUG, INFO, WARNING, ERROR).
+  --clog_level=LEVEL      Set the console logging level (e.g., DEBUG, INFO, WARNING, ERROR).
+  -h, --help              Show this help message and exit.
+
+Arguments:
+  TARFILE                 The tarball file to be processed.
+
+Examples:
+  checkmake.py -w ./workdir -o stdout.log -e stderr.log my_tarball.tar.gz
+  checkmake.py --stdout=stdout.log --stderr=stderr.log --work=./tmp my_tarball.tar.gz
+        """
+    )
 
 def main():
     # Parse command-line arguments
