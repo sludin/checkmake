@@ -100,18 +100,18 @@ class Options():
     A class to hold options parsed from the command line arguments.
     Default values are provided where applicable.
     """
-    remove_work: bool = False
-    preserve_work: bool = False
-    verbose: int = 1
-    log_level_file: int = Log.INFO
-    log_level_console: int = Log.WARNING
-    stdout_file: str = ""
-    stderr_file: str = ""
-    working_dir: str = ""
-    log_file: str = ""
-    target: str = ""
-    tarball: str = ""
-    args: list = field(default_factory=list)
+    remove_work:        bool = False
+    preserve_work:      bool = False
+    verbose:            int  = 1
+    log_level_file:     int  = Log.INFO
+    log_level_console:  int  = Log.WARNING
+    stdout_file:        str  = ""
+    stderr_file:        str  = ""
+    working_dir:        str  = ""
+    log_file:           str  = ""
+    target:             str  = ""
+    tarball:            str  = ""
+    args:               list = field(default_factory=list)
 
 def path_is_parent(parent_path, child_path):
     """
@@ -325,7 +325,7 @@ def handle_args():
     # Set default paths if not provided
     options.stdout_file = options.stdout_file or os.path.join(options.working_dir, STDOUT_FILE)
     options.stderr_file = options.stderr_file or os.path.join(options.working_dir, STDERR_FILE)
-    options.log_file    = options.log_file or os.path.join(options.working_dir, LOG_FILE)
+    options.log_file    = options.log_file    or os.path.join(options.working_dir, LOG_FILE)
 
     # Set tarball argument
     if not args:
