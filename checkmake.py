@@ -6,6 +6,7 @@ import shutil
 import getopt
 from dataclasses import dataclass, field
 
+VERSION             = "1.0.0"
 WORKING_DIR         = "./work"
 STDOUT_FILE         = "make.stdout"
 STDERR_FILE         = "make.stderr"
@@ -282,8 +283,8 @@ def handle_args():
     try:
         opts, args = getopt.gnu_getopt(
             sys.argv[1:], 
-            "xo:e:hw:l:t:", 
-            ["stdout=", "stderr=", "help", "work=", "log=", "flog_level=", "clog_level=", "target="]
+            "vxo:e:hw:l:t:", 
+            ["version", "stdout=", "stderr=", "help", "work=", "log=", "flog_level=", "clog_level=", "target="]
         )
     except getopt.GetoptError as err:
         print(err)
@@ -307,6 +308,9 @@ def handle_args():
             options.working_dir = arg
         elif opt in ("-l", "--log"):
             options.log_file = arg
+        elif opt in ("-v", "--version"):
+            print( f"checkmake {VERSION}" );
+            sys.exit(0)
         elif opt in ("-t", "--target"):
             options.target = arg
         elif opt in ("--flog_level", "--clog_level"):
@@ -340,15 +344,17 @@ def usage():
     Prints the usage information for the script, detailing the available options and arguments.
     """
     print(
-        """
+        f"""
 Usage: checkmake.py [OPTIONS] TARFILE
+        
+Version: {VERSION}
 
 Options:
   -x                      Remove the working directory before starting (default: keep the directory).
   -w, --work=DIR          Specify the working directory where operations will be performed (default: ./work).
-  -o, --stdout=FILE       File to write stdout output from the make process (default: {working_dir}/stdout.log).
-  -e, --stderr=FILE       File to write stderr output from the make process (default: {working_dir}/stderr.log).
-  -l, --log=FILE          File to write log messages (default: {working_dir}/logfile.log).
+  -o, --stdout=FILE       File to write stdout output from the make process (default: {{working_dir}}/stdout.log).
+  -e, --stderr=FILE       File to write stderr output from the make process (default: {{working_dir}}/stderr.log).
+  -l, --log=FILE          File to write log messages (default: {{working_dir}}/logfile.log).
   -t, --target=FILE       Specify a target file to verify its presence in the project directory.
   --flog_level=LEVEL      Set the file logging level (e.g., DEBUG, INFO, WARNING, ERROR).
   --clog_level=LEVEL      Set the console logging level (e.g., DEBUG, INFO, WARNING, ERROR).
