@@ -423,6 +423,8 @@ def main():
     if not opts.remove_work:
         shutil.rmtree(opts.working_dir, ignore_errors=True)
 
+    print( "It looks like all tests passed. Assuming you ran this on the cal poly server, turn it in!" )
+    
     log.info("Process completed successfully")
     
 if __name__ == "__main__":
