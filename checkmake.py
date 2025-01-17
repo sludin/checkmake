@@ -6,7 +6,7 @@ import shutil
 import getopt
 from dataclasses import dataclass, field
 
-VERSION             = "1.0.0"
+VERSION             = "1.0.2"
 WORKING_DIR         = "./work"
 STDOUT_FILE         = "make.stdout"
 STDERR_FILE         = "make.stderr"
