@@ -283,7 +283,7 @@ def handle_args():
     try:
         opts, args = getopt.gnu_getopt(
             sys.argv[1:], 
-            "vxo:e:hw:l:t:", 
+            "Xvxo:e:hw:l:t:", 
             ["version", "stdout=", "stderr=", "help", "work=", "log=", "flog_level=", "clog_level=", "target="]
         )
     except getopt.GetoptError as err:
@@ -297,6 +297,8 @@ def handle_args():
     for opt, arg in opts:
         if opt == "-x":
             options.preserve_work = False
+        if opt == "-X":
+            options.remove_work = True
         elif opt in ("-h", "--help"):
             usage()
             sys.exit()
@@ -351,6 +353,7 @@ Version: {VERSION}
 
 Options:
   -x                      Remove the working directory before starting (default: keep the directory).
+  -X                      Remove the working directory when done 
   -w, --work=DIR          Specify the working directory where operations will be performed (default: ./work).
   -o, --stdout=FILE       File to write stdout output from the make process (default: {{working_dir}}/stdout.log).
   -e, --stderr=FILE       File to write stderr output from the make process (default: {{working_dir}}/stderr.log).
@@ -359,6 +362,7 @@ Options:
   --flog_level=LEVEL      Set the file logging level (e.g., DEBUG, INFO, WARNING, ERROR).
   --clog_level=LEVEL      Set the console logging level (e.g., DEBUG, INFO, WARNING, ERROR).
   -h, --help              Show this help message and exit.
+  -v, --version           Show version and exit.
 
 Arguments:
   TARFILE                 The tarball file to be processed.
@@ -420,7 +424,7 @@ def main():
             sys.exit(1)
 
     # Remove the working directory if requested
-    if not opts.remove_work:
+    if opts.remove_work:
         shutil.rmtree(opts.working_dir, ignore_errors=True)
 
     print( "It looks like all tests passed. Assuming you ran this on the cal poly server, turn it in!" )
