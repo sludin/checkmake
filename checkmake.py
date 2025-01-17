@@ -6,7 +6,7 @@ import shutil
 import getopt
 from dataclasses import dataclass, field
 
-VERSION             = "1.0.2"
+VERSION             = "1.0.3"
 WORKING_DIR         = "./work"
 STDOUT_FILE         = "make.stdout"
 STDERR_FILE         = "make.stderr"
@@ -150,6 +150,12 @@ def test_tarball(log, tarball, working_dir):
     try:
         with tarfile.open(tarball, "r:gz") as tar:
             top_member = tar.getmembers()[0]
+
+            for n in tar.getmembers():
+                if not n.name.startswith( "." ):
+                    top_member = n
+                    break
+                
             if top_member.type == tarfile.DIRTYPE:
                 project_dir = os.path.join(working_dir, top_member.name)
                 log.info(f"Top level of the tarball is the directory: {top_member.name}")
